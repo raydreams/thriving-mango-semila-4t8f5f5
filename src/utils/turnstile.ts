@@ -1,5 +1,5 @@
 import { H3Event, EventHandlerRequest } from 'h3';
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT, jwtVerify, JWTPayload } from 'jose';
 import { getIp } from '@/utils/ip';
 
 const turnstileSecret = process.env.TURNSTILE_SECRET ?? null;
@@ -8,6 +8,10 @@ const jwtSecret = process.env.JWT_SECRET ?? null;
 const tokenHeader = 'X-Token';
 const jwtPrefix = 'jwt|';
 const turnstilePrefix = 'turnstile|';
+
+interface TokenPayload extends JWTPayload {
+  ip: string;
+}
 
 export function isTurnstileEnabled() {
   return !!turnstileSecret && !!jwtSecret;
@@ -51,16 +55,16 @@ export async function isAllowedToMakeRequest(
 
   if (token.startsWith(jwtPrefix)) {
     const jwtToken = token.slice(jwtPrefix.length);
-    let jwtPayload: { ip: string } | null = null;
+    let jwtPayload: TokenPayload | null = null;
     try {
-      const jwtResult = await jwtVerify<{ ip: string }>(
+      const jwtResult = await jwtVerify(
         jwtToken,
         new TextEncoder().encode(jwtSecret),
         {
           algorithms: ['HS256'],
         },
       );
-      jwtPayload = jwtResult.payload;
+      jwtPayload = jwtResult.payload as TokenPayload;
     } catch {}
     if (!jwtPayload) return false;
     if (getIp(event) !== jwtPayload.ip) return false;
